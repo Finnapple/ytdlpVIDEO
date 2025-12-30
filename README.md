@@ -1,4 +1,4 @@
-# SuperYTDLP
+# ytdlpVIDEO
 
 SuperYTDLP is a fast and reliable Python-powered video downloader that supports multiple platforms such as **YouTube**, **Facebook**, **TikTok**, **Instagram**, and more.  
 It automatically downloads **high-quality video with audio**, all through a simple and user-friendly batch interface.
