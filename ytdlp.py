@@ -16,7 +16,6 @@ class UniversalVideoDownloader:
         self.output_dir = script_dir / "Video Downloads"
         self.output_dir.mkdir(parents=True, exist_ok=True)
         
-        # Hanapin ang ffmpeg.exe sa same folder
         self.ffmpeg_path = self.find_ffmpeg_in_same_folder(script_dir)
         
         if not self.check_ytdlp_installed():
@@ -24,13 +23,11 @@ class UniversalVideoDownloader:
             sys.exit(1)
     
     def find_ffmpeg_in_same_folder(self, script_dir: Path):
-        """Hanapin ang ffmpeg.exe sa same folder ng script"""
         ffmpeg_path = script_dir / "ffmpeg.exe"
         
         if ffmpeg_path.exists():
             return str(ffmpeg_path)
         
-        # Check din sa subfolders
         for root, dirs, files in os.walk(script_dir):
             for file in files:
                 if file.lower() == "ffmpeg.exe":
@@ -90,12 +87,9 @@ class UniversalVideoDownloader:
         try:
             if not name:
                 return "video"
-            # Replace problematic characters
             name = re.sub(r'[<>:"/\\|?*]', '', name)
-            # Replace special characters that might cause issues
             name = name.replace('｜', '-').replace('|', '-').replace('⧸', '-')
             name = name.replace('/', '-').replace('\\', '-')
-            # Remove extra spaces
             name = re.sub(r'\s+', ' ', name)
             if len(name) > 150:
                 name = name[:150]
@@ -110,7 +104,6 @@ class UniversalVideoDownloader:
             try:
                 print(f"[*] Getting video information (attempt {attempt + 1}/{max_retries})...")
                 
-                # Get video info
                 result = subprocess.run([
                     "yt-dlp", "--dump-json", "--no-warnings", url
                 ], capture_output=True, text=True, timeout=30)
@@ -118,7 +111,6 @@ class UniversalVideoDownloader:
                 if result.returncode == 0:
                     info = json.loads(result.stdout)
                     
-                    # Get available formats para malaman ang best quality
                     try:
                         formats_result = subprocess.run([
                             "yt-dlp", "-F", url
@@ -179,28 +171,25 @@ class UniversalVideoDownloader:
         max_retries = 3
         for attempt in range(max_retries):
             try:
-                # TRUE HIGHEST QUALITY - separate video and audio then merge
-                # 399 = 1080p avc1, 398 = 1080p hevc, 137 = 1080p video, 140 = best audio
                 format_spec = "399+140/398+140/137+140/299+140/298+140/136+140/bestvideo+bestaudio/best"
                 
                 cmd = [
                     "yt-dlp",
                     "-f", format_spec,
                     "--merge-output-format", "mp4",
-                    "--embed-metadata",  # Keep metadata for title/info
-                    "--no-write-thumbnail",  # HUWAG mag-download ng thumbnail
-                    "--no-write-info-json",  # HUWAG mag-save ng info.json
-                    "--no-write-description",  # HUWAG mag-save ng description
-                    "--no-write-annotations",  # HUWAG mag-save ng annotations
-                    "--no-write-sub",  # HUWAG mag-download ng subs (kung ayaw mo)
-                    "--no-embed-thumbnail",  # HUWAG i-embed ang thumbnail
+                    "--embed-metadata",
+                    "--no-write-thumbnail",
+                    "--no-write-info-json",
+                    "--no-write-description",
+                    "--no-write-annotations",
+                    "--no-write-sub",
+                    "--no-embed-thumbnail",
                     "-o", str(output_path / "%(title)s.%(ext)s"),
                     "--no-warnings",
                     "--newline",
                     "--progress"
                 ]
                 
-                # Add ffmpeg location if found
                 if self.ffmpeg_path:
                     cmd.extend(["--ffmpeg-location", self.ffmpeg_path])
                 
@@ -232,7 +221,6 @@ class UniversalVideoDownloader:
                             else:
                                 print(f"\r{line}", end='', flush=True)
                         elif 'Destination' in line:
-                            # Ipakita lang ang video file destination, hindi thumbnail
                             if '.mp4' in line or '.mkv' in line:
                                 print(f"[*] {line}")
                         elif 'Merging' in line:
@@ -248,7 +236,7 @@ class UniversalVideoDownloader:
                         elif 'WARNING' in line:
                             if 'requested format not available' in line:
                                 print(f"\n[*] Format not available, trying alternative...")
-                            elif 'thumbnail' not in line.lower():  # Huwag ipakita ang thumbnail warnings
+                            elif 'thumbnail' not in line.lower():
                                 print(f"\n[*] Warning: {line}")
                     
                     if time.time() - start_time > timeout:
@@ -266,7 +254,6 @@ class UniversalVideoDownloader:
                         print(f"\n[+] Download completed successfully!")
                         print(f"[+] Highest quality video with audio ready!")
                         
-                        # Linisin ang extra files (just in case may thumbnail na nadownload)
                         self.cleanup_extra_files(output_path)
                         
                         return True
@@ -288,22 +275,19 @@ class UniversalVideoDownloader:
         return False
     
     def cleanup_extra_files(self, output_path: Path):
-        """Burahin ang mga extra files tulad ng thumbnails"""
         try:
-            # Hanapin at burahin ang thumbnail files
             thumbnail_patterns = [
-                "*.jpg", "*.jpeg", "*.png", "*.webp",  # Image files
-                "*.info.json", "*.description",  # Info files
-                "*.vtt", "*.srt", "*.ass",  # Subtitle files (kung nadownload)
-                "*.part", "*.temp",  # Temp files
-                "*.f399.mp4", "*.f398.mp4", "*.f137.mp4",  # Separate video streams
-                "*.f140.m4a", "*.f251.webm"  # Separate audio streams
+                "*.jpg", "*.jpeg", "*.png", "*.webp",
+                "*.info.json", "*.description",
+                "*.vtt", "*.srt", "*.ass",
+                "*.part", "*.temp",
+                "*.f399.mp4", "*.f398.mp4", "*.f137.mp4",
+                "*.f140.m4a", "*.f251.webm"
             ]
             
             for pattern in thumbnail_patterns:
                 for file in output_path.glob(pattern):
                     try:
-                        # Huwag burahin ang main video file
                         if file.suffix == '.mp4' and 'f399' not in file.name and 'f398' not in file.name and 'f137' not in file.name:
                             continue
                         file.unlink()
@@ -311,34 +295,28 @@ class UniversalVideoDownloader:
                     except:
                         pass
         except Exception as e:
-            pass  # Silent fail para hindi maka-distract
+            pass
     
     def find_downloaded_file(self, video_info: Dict, output_path: Path) -> Optional[Path]:
         try:
-            # Wait a moment for files to be written
             time.sleep(2)
             
-            # Get all video files
             video_files = list(output_path.glob("*.mp4"))
             
             if not video_files:
                 print("[*] No MP4 files found in download directory")
                 return None
             
-            # I-filter out ang mga temp/partial files
             video_files = [f for f in video_files if not f.name.startswith('.') and 'part' not in f.name]
             
-            # Sort by modification time (newest first)
             video_files.sort(key=lambda x: x.stat().st_mtime, reverse=True)
             
-            # Try to find exact title match
             sanitized_title = self.sanitize_filename(video_info['title'])
             for file in video_files:
                 if sanitized_title.lower() in file.stem.lower():
                     print(f"[*] Found matching file: {file.name}")
                     return file
             
-            # Use newest file
             if video_files:
                 newest_file = video_files[0]
                 print(f"[*] No exact title match, using newest file: {newest_file.name}")
@@ -351,12 +329,9 @@ class UniversalVideoDownloader:
             return None
     
     def verify_audio(self, file_path: Path) -> bool:
-        """Verify that the file has an audio stream"""
         try:
-            # Check file size (HD video with audio should be > 50MB for 9min video)
             file_size_mb = file_path.stat().st_size / (1024 * 1024)
             
-            # Try to use ffprobe if available
             if self.ffmpeg_path:
                 ffprobe_path = str(Path(self.ffmpeg_path).parent / "ffprobe.exe")
                 if os.path.exists(ffprobe_path):
@@ -370,7 +345,6 @@ class UniversalVideoDownloader:
                         print(f"[+] Audio: Present ({file_size_mb:.2f} MB)")
                         return True
             
-            # Fallback: estimate based on size
             if file_size_mb > 50:
                 print(f"[+] High quality detected: {file_size_mb:.2f} MB (likely has audio)")
                 return True
@@ -429,7 +403,6 @@ class UniversalVideoDownloader:
                         print(f"[+] File size: {file_size:.2f} MB")
                         print(f"[+] Location: {downloaded_file}")
                         
-                        # Verify quality and audio
                         self.verify_audio(downloaded_file)
                             
                     except Exception as e:
@@ -516,7 +489,6 @@ class UniversalVideoDownloader:
             
             process.wait()
             
-            # Clean up extra files
             self.cleanup_extra_files(playlist_dir)
             
             if process.returncode == 0:
@@ -550,7 +522,7 @@ class UniversalVideoDownloader:
 
 def main():
     try:
-        parser = argparse.ArgumentParser(description='Universal Video Downloader - HIGHEST QUALITY WITH AUDIO (NO THUMBNAILS)')
+        parser = argparse.ArgumentParser(description='Universal Video Downloader - HIGHEST QUALITY WITH AUDIO')
         parser.add_argument('url', nargs='?', help='Video URL (YouTube, Facebook, TikTok, Instagram, etc.)')
         parser.add_argument('--file', '-f', help='Text file containing multiple video URLs')
         parser.add_argument('--playlist', '-p', action='store_true', help='Force treat as playlist')
