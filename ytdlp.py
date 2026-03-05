@@ -19,7 +19,7 @@ class UniversalVideoDownloader:
         self.ffmpeg_path = self.find_ffmpeg_in_same_folder(script_dir)
         
         if not self.check_ytdlp_installed():
-            print("[*] yt-dlp is not installed. Please install it with: pip install yt-dlp")
+            print("[*] yt-dlp is not installed. Please install it with: python -m pip install yt-dlp")
             sys.exit(1)
     
     def find_ffmpeg_in_same_folder(self, script_dir: Path):
@@ -41,14 +41,22 @@ class UniversalVideoDownloader:
         return None
     
     def check_ytdlp_installed(self) -> bool:
+        """Check if yt-dlp is installed as a Python module"""
         try:
-            result = subprocess.run(["yt-dlp", "--version"], 
-                          capture_output=True, check=True, text=True, timeout=10)
-            return True
+            # We still run the check, but we no longer print the result
+            subprocess.run(
+                [sys.executable, "-m", "yt_dlp", "--version"], 
+                capture_output=True, 
+                check=True, 
+                text=True, 
+                timeout=10
+            )
+            return True # Quietly return True if it works
         except subprocess.TimeoutExpired:
             print("[*] Timeout checking yt-dlp version")
             return False
         except (subprocess.CalledProcessError, FileNotFoundError):
+            print("[*] yt-dlp module not found")
             return False
         except Exception as e:
             print(f"[*] Unexpected error checking yt-dlp: {e}")
@@ -104,16 +112,18 @@ class UniversalVideoDownloader:
             try:
                 print(f"[*] Getting video information (attempt {attempt + 1}/{max_retries})...")
                 
+                # Fixed: Use sys.executable -m yt_dlp
                 result = subprocess.run([
-                    "yt-dlp", "--dump-json", "--no-warnings", url
+                    sys.executable, "-m", "yt_dlp", "--dump-json", "--no-warnings", url
                 ], capture_output=True, text=True, timeout=30)
                 
                 if result.returncode == 0:
                     info = json.loads(result.stdout)
                     
                     try:
+                        # Fixed: Use sys.executable -m yt_dlp
                         formats_result = subprocess.run([
-                            "yt-dlp", "-F", url
+                            sys.executable, "-m", "yt_dlp", "-F", url
                         ], capture_output=True, text=True, timeout=30)
                         
                         lines = formats_result.stdout.split('\n')
@@ -173,8 +183,9 @@ class UniversalVideoDownloader:
             try:
                 format_spec = "399+140/398+140/137+140/299+140/298+140/136+140/bestvideo+bestaudio/best"
                 
+                # Fixed: Use sys.executable -m yt_dlp
                 cmd = [
-                    "yt-dlp",
+                    sys.executable, "-m", "yt_dlp",
                     "-f", format_spec,
                     "--merge-output-format", "mp4",
                     "--embed-metadata",
@@ -435,8 +446,9 @@ class UniversalVideoDownloader:
             
             print(f"[*] Downloading playlist to: {playlist_dir}")
             
+            # Fixed: Use sys.executable -m yt_dlp
             cmd = [
-                "yt-dlp",
+                sys.executable, "-m", "yt_dlp",
                 "-f", "399+140/398+140/137+140/299+140/298+140/136+140/bestvideo+bestaudio/best",
                 "--merge-output-format", "mp4",
                 "--embed-metadata",
