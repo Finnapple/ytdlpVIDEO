@@ -178,112 +178,95 @@ class UniversalVideoDownloader:
         return None
     
     def download_with_ytdlp(self, url: str, output_path: Path, timeout: int = 900) -> bool:
-        max_retries = 3
-        for attempt in range(max_retries):
-            try:
-                format_spec = "399+140/398+140/137+140/299+140/298+140/136+140/bestvideo+bestaudio/best"
-                
-                # Fixed: Use sys.executable -m yt_dlp
-                cmd = [
-                    sys.executable, "-m", "yt_dlp",
-                    "-f", format_spec,
-                    "--merge-output-format", "mp4",
-                    "--embed-metadata",
-                    "--no-write-thumbnail",
-                    "--no-write-info-json",
-                    "--no-write-description",
-                    "--no-write-annotations",
-                    "--no-write-sub",
-                    "--no-embed-thumbnail",
-                    "-o", str(output_path / "%(title)s.%(ext)s"),
-                    "--no-warnings",
-                    "--newline",
-                    "--progress"
-                ]
-                
-                if self.ffmpeg_path:
-                    cmd.extend(["--ffmpeg-location", self.ffmpeg_path])
-                
-                cmd.append(url)
-                
-                print(f"[*] Download attempt {attempt + 1}/{max_retries}")
-                print(f"[*] Downloading HIGHEST QUALITY (1080p/4K) with audio...")
-                print(f"[*] Thumbnails and extra files DISABLED")
-                
-                process = subprocess.Popen(
-                    cmd,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.STDOUT,
-                    text=True,
-                    bufsize=1,
-                    universal_newlines=True
-                )
-                
-                start_time = time.time()
-                download_successful = False
-                
-                for line in process.stdout:
-                    line = line.strip()
-                    if line:
-                        if '[download]' in line:
-                            if '100%' in line:
-                                print(f"\r{line}", flush=True)
-                                download_successful = True
-                            else:
-                                print(f"\r{line}", end='', flush=True)
-                        elif 'Destination' in line:
-                            if '.mp4' in line or '.mkv' in line:
-                                print(f"[*] {line}")
-                        elif 'Merging' in line:
-                            print(f"[*] {line}")
-                        elif 'has already been downloaded' in line:
-                            print(f"[*] {line}")
-                            download_successful = True
-                        elif 'ERROR' in line:
-                            if 'ffprobe' in line:
-                                print(f"\n[*] Using local ffmpeg for merging...")
-                            else:
-                                print(f"\n[!] Error: {line}")
-                        elif 'WARNING' in line:
-                            if 'requested format not available' in line:
-                                print(f"\n[*] Format not available, trying alternative...")
-                            elif 'thumbnail' not in line.lower():
-                                print(f"\n[*] Warning: {line}")
-                    
-                    if time.time() - start_time > timeout:
-                        process.kill()
-                        print(f"\n[*] Download timed out after {timeout} seconds!")
-                        if attempt < max_retries - 1:
-                            print(f"[*] Retrying...")
-                            time.sleep(3)
-                        break
-                
-                else:
-                    process.wait()
-                    
-                    if process.returncode == 0 or download_successful:
-                        print(f"\n[+] Download completed successfully!")
-                        print(f"[+] Highest quality video with audio ready!")
-                        
-                        self.cleanup_extra_files(output_path)
-                        
-                        return True
+    max_retries = 3
+
+    for attempt in range(max_retries):
+        try:
+            # Proper highest-quality selector (4K priority)
+            format_spec = "bv*+ba/b"
+
+            cmd = [
+                sys.executable, "-m", "yt_dlp",
+
+                # FORMAT SELECTION
+                "-f", format_spec,
+
+                # Sort: highest resolution first, prioritize AV1 (YouTube 4K default)
+                "-S", "res,codec:av1",
+
+                # Merge settings
+                "--merge-output-format", "mp4",
+
+                # Metadata options
+                "--embed-metadata",
+                "--no-write-thumbnail",
+                "--no-write-info-json",
+
+                # Output path
+                "-o", str(output_path / "%(title)s.%(ext)s"),
+
+                # Cleaner console
+                "--no-warnings",
+                "--newline",
+                "--progress"
+            ]
+
+            if self.ffmpeg_path:
+                cmd.extend(["--ffmpeg-location", self.ffmpeg_path])
+
+            cmd.append(url)
+
+            print(f"[*] Download attempt {attempt + 1}/{max_retries}")
+
+            process = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                bufsize=1,
+                universal_newlines=True
+            )
+
+            download_successful = False
+
+            for line in process.stdout:
+                line = line.strip()
+                if not line:
+                    continue
+
+                if '[download]' in line:
+                    if '100%' in line:
+                        print(f"\r{line}", flush=True)
+                        download_successful = True
                     else:
-                        print(f"\n[!] Download failed with exit code: {process.returncode}")
-                        if attempt < max_retries - 1:
-                            print(f"[*] Retrying in 3 seconds...")
-                            time.sleep(3)
-                
-                continue
-                
-            except Exception as e:
-                print(f"[*] Error downloading with yt-dlp (attempt {attempt + 1}): {e}")
+                        print(f"\r{line}", end='', flush=True)
+
+                elif 'Merging' in line or 'Destination' in line:
+                    print(f"\n[*] {line}")
+
+                elif 'has already been downloaded' in line:
+                    print(f"\n[*] {line}")
+                    download_successful = True
+
+            return_code = process.wait()
+
+            if return_code == 0 or download_successful:
+                print(f"\n[+] Download completed successfully!")
+                print(f"[+] Highest available quality with audio ready!")
+                self.cleanup_extra_files(output_path)
+                return True
+            else:
+                print(f"\n[!] Download failed with exit code: {return_code}")
                 if attempt < max_retries - 1:
-                    print(f"[*] Retrying in 3 seconds...")
                     time.sleep(3)
-        
-        print(f"[!] Download failed after {max_retries} attempts")
-        return False
+                    continue
+
+        except Exception as e:
+            print(f"[*] Error downloading: {e}")
+            if attempt < max_retries - 1:
+                time.sleep(3)
+
+    return False
     
     def cleanup_extra_files(self, output_path: Path):
         try:
@@ -449,7 +432,7 @@ class UniversalVideoDownloader:
             # Fixed: Use sys.executable -m yt_dlp
             cmd = [
                 sys.executable, "-m", "yt_dlp",
-                "-f", "399+140/398+140/137+140/299+140/298+140/136+140/bestvideo+bestaudio/best",
+                "-f", "bestvideo[height<=2160]+bestaudio/best",
                 "--merge-output-format", "mp4",
                 "--embed-metadata",
                 "--no-write-thumbnail",
