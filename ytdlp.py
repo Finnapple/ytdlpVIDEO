@@ -43,7 +43,6 @@ class UniversalVideoDownloader:
     def check_ytdlp_installed(self) -> bool:
         """Check if yt-dlp is installed as a Python module"""
         try:
-            # We still run the check, but we no longer print the result
             subprocess.run(
                 [sys.executable, "-m", "yt_dlp", "--version"], 
                 capture_output=True, 
@@ -51,15 +50,8 @@ class UniversalVideoDownloader:
                 text=True, 
                 timeout=10
             )
-            return True # Quietly return True if it works
-        except subprocess.TimeoutExpired:
-            print("[*] Timeout checking yt-dlp version")
-            return False
-        except (subprocess.CalledProcessError, FileNotFoundError):
-            print("[*] yt-dlp module not found")
-            return False
-        except Exception as e:
-            print(f"[*] Unexpected error checking yt-dlp: {e}")
+            return True
+        except:
             return False
     
     def clear_screen(self):
@@ -112,7 +104,6 @@ class UniversalVideoDownloader:
             try:
                 print(f"[*] Getting video information (attempt {attempt + 1}/{max_retries})...")
                 
-                # Fixed: Use sys.executable -m yt_dlp
                 result = subprocess.run([
                     sys.executable, "-m", "yt_dlp", "--dump-json", "--no-warnings", url
                 ], capture_output=True, text=True, timeout=30)
@@ -121,7 +112,6 @@ class UniversalVideoDownloader:
                     info = json.loads(result.stdout)
                     
                     try:
-                        # Fixed: Use sys.executable -m yt_dlp
                         formats_result = subprocess.run([
                             sys.executable, "-m", "yt_dlp", "-F", url
                         ], capture_output=True, text=True, timeout=30)
@@ -178,149 +168,243 @@ class UniversalVideoDownloader:
         return None
     
     def download_with_ytdlp(self, url: str, output_path: Path, timeout: int = 900) -> bool:
-    max_retries = 3
-
-    for attempt in range(max_retries):
-        try:
-            # Proper highest-quality selector (4K priority)
-            format_spec = "bv*+ba/b"
-
-            cmd = [
-                sys.executable, "-m", "yt_dlp",
-
-                # FORMAT SELECTION
-                "-f", format_spec,
-
-                # Sort: highest resolution first, prioritize AV1 (YouTube 4K default)
-                "-S", "res,codec:av1",
-
-                # Merge settings
-                "--merge-output-format", "mp4",
-
-                # Metadata options
-                "--embed-metadata",
-                "--no-write-thumbnail",
-                "--no-write-info-json",
-
-                # Output path
-                "-o", str(output_path / "%(title)s.%(ext)s"),
-
-                # Cleaner console
-                "--no-warnings",
-                "--newline",
-                "--progress"
-            ]
-
-            if self.ffmpeg_path:
-                cmd.extend(["--ffmpeg-location", self.ffmpeg_path])
-
-            cmd.append(url)
-
-            print(f"[*] Download attempt {attempt + 1}/{max_retries}")
-
-            process = subprocess.Popen(
-                cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                bufsize=1,
-                universal_newlines=True
-            )
-
-            download_successful = False
-
-            for line in process.stdout:
-                line = line.strip()
-                if not line:
-                    continue
-
-                if '[download]' in line:
-                    if '100%' in line:
-                        print(f"\r{line}", flush=True)
-                        download_successful = True
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                format_spec = "399+140/398+140/137+140/299+140/298+140/136+140/bestvideo+bestaudio/best"
+                
+                cmd = [
+                    sys.executable, "-m", "yt_dlp",
+                    "-f", format_spec,
+                    "--merge-output-format", "mp4",
+                    "--embed-metadata",
+                    "--no-write-thumbnail",
+                    "--no-write-info-json",
+                    "--no-write-description",
+                    "--no-write-annotations",
+                    "--no-write-sub",
+                    "--no-embed-thumbnail",
+                    "-o", str(output_path / "%(title)s.%(ext)s"),
+                    "--no-warnings",
+                    "--newline",
+                    "--progress",
+                    "--verbose"  # Added verbose for better debugging
+                ]
+                
+                if self.ffmpeg_path:
+                    cmd.extend(["--ffmpeg-location", self.ffmpeg_path])
+                
+                cmd.append(url)
+                
+                print(f"[*] Download attempt {attempt + 1}/{max_retries}")
+                print(f"[*] Downloading HIGHEST QUALITY (1080p/4K) with audio...")
+                print(f"[*] Thumbnails and extra files DISABLED")
+                
+                process = subprocess.Popen(
+                    cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    bufsize=1,
+                    universal_newlines=True
+                )
+                
+                start_time = time.time()
+                download_completed = False
+                merge_completed = False
+                final_output = None
+                
+                for line in process.stdout:
+                    line = line.strip()
+                    if line:
+                        # Check for download completion
+                        if '[download]' in line:
+                            if '100%' in line:
+                                print(f"\r{line}", flush=True)
+                                # Check if this is the final destination file
+                                if 'Destination' in line or 'has already been downloaded' in line:
+                                    download_completed = True
+                            elif 'has already been downloaded' in line:
+                                print(f"[*] {line}")
+                                download_completed = True
+                            else:
+                                # Extract and display progress
+                                if '%' in line:
+                                    print(f"\r{line}", end='', flush=True)
+                        
+                        # Check for file merging completion
+                        elif 'Merging' in line:
+                            print(f"\n[*] {line}")
+                            if 'into' in line:
+                                # Extract the output filename
+                                match = re.search(r'into "(.*?)"', line)
+                                if match:
+                                    final_output = match.group(1)
+                                    print(f"[*] Final output will be: {os.path.basename(final_output)}")
+                        
+                        # Check for final output message
+                        elif '[Merger]' in line and 'Merged' in line:
+                            print(f"[*] {line}")
+                            merge_completed = True
+                            download_completed = True
+                        
+                        # Check for successful completion message
+                        elif line.startswith('[download]') and 'Downloaded' in line and 'to' in line:
+                            print(f"[*] {line}")
+                            download_completed = True
+                        
+                        # Check for final file creation
+                        elif 'has already been downloaded' in line:
+                            print(f"[*] {line}")
+                            download_completed = True
+                        
+                        # Handle errors
+                        elif 'ERROR' in line:
+                            if 'ffprobe' in line:
+                                print(f"\n[*] Using local ffmpeg for merging...")
+                            else:
+                                print(f"\n[!] Error: {line}")
+                                if 'Video unavailable' in line or 'Private video' in line:
+                                    return False
+                        
+                        # Handle warnings
+                        elif 'WARNING' in line:
+                            if 'requested format not available' in line:
+                                print(f"\n[*] Format not available, trying alternative...")
+                            elif 'thumbnail' not in line.lower():
+                                print(f"\n[*] Warning: {line}")
+                    
+                    # Check for timeout
+                    if time.time() - start_time > timeout:
+                        process.kill()
+                        print(f"\n[*] Download timed out after {timeout} seconds!")
+                        if attempt < max_retries - 1:
+                            print(f"[*] Retrying...")
+                            time.sleep(3)
+                        break
+                
+                # Wait for process to complete
+                process.wait()
+                
+                # Check for successful completion
+                if process.returncode == 0 or download_completed:
+                    print(f"\n[+] Download completed successfully!")
+                    
+                    # Wait a moment for files to be written
+                    time.sleep(2)
+                    
+                    # Find the downloaded file
+                    downloaded_file = self.find_downloaded_file_by_time(output_path)
+                    if downloaded_file:
+                        print(f"[+] File saved as: {downloaded_file.name}")
+                        
+                        # Check file size
+                        file_size = downloaded_file.stat().st_size / (1024 * 1024)
+                        print(f"[+] File size: {file_size:.2f} MB")
+                        
+                        # Verify audio
+                        self.verify_audio(downloaded_file)
                     else:
-                        print(f"\r{line}", end='', flush=True)
-
-                elif 'Merging' in line or 'Destination' in line:
-                    print(f"\n[*] {line}")
-
-                elif 'has already been downloaded' in line:
-                    print(f"\n[*] {line}")
-                    download_successful = True
-
-            return_code = process.wait()
-
-            if return_code == 0 or download_successful:
-                print(f"\n[+] Download completed successfully!")
-                print(f"[+] Highest available quality with audio ready!")
-                self.cleanup_extra_files(output_path)
-                return True
-            else:
-                print(f"\n[!] Download failed with exit code: {return_code}")
-                if attempt < max_retries - 1:
-                    time.sleep(3)
+                        print(f"[+] Check directory for downloaded file: {output_path}")
+                    
+                    # Clean up temporary files
+                    self.cleanup_extra_files(output_path)
+                    
+                    return True
+                else:
+                    print(f"\n[!] Download failed with exit code: {process.returncode}")
+                    if attempt < max_retries - 1:
+                        print(f"[*] Retrying in 3 seconds...")
+                        time.sleep(3)
                     continue
-
+                
+            except Exception as e:
+                print(f"[*] Error downloading with yt-dlp (attempt {attempt + 1}): {e}")
+                if attempt < max_retries - 1:
+                    print(f"[*] Retrying in 3 seconds...")
+                    time.sleep(3)
+        
+        print(f"[!] Download failed after {max_retries} attempts")
+        return False
+    
+    def find_downloaded_file_by_time(self, output_path: Path) -> Optional[Path]:
+        """Find the most recently downloaded MP4 file"""
+        try:
+            # Get all MP4 files in the directory
+            mp4_files = list(output_path.glob("*.mp4"))
+            
+            # Filter out temporary/partial files
+            mp4_files = [f for f in mp4_files if not f.name.startswith('.') 
+                        and 'part' not in f.name.lower()
+                        and not any(x in f.name.lower() for x in ['temp', 'tmp', 'partial'])]
+            
+            if not mp4_files:
+                return None
+            
+            # Sort by modification time (most recent first)
+            mp4_files.sort(key=lambda x: x.stat().st_mtime, reverse=True)
+            
+            # Return the most recent file
+            newest_file = mp4_files[0]
+            
+            # Check if it was created/modified in the last 5 minutes
+            current_time = time.time()
+            file_time = newest_file.stat().st_mtime
+            
+            if current_time - file_time < 300:  # 5 minutes
+                return newest_file
+            else:
+                # If the newest file is older than 5 minutes, check all files
+                for file in mp4_files:
+                    if current_time - file.stat().st_mtime < 300:
+                        return file
+                
+                # If still no recent file, return the newest anyway
+                return newest_file
+                
         except Exception as e:
-            print(f"[*] Error downloading: {e}")
-            if attempt < max_retries - 1:
-                time.sleep(3)
-
-    return False
+            print(f"[*] Error finding downloaded file: {e}")
+            return None
     
     def cleanup_extra_files(self, output_path: Path):
         try:
-            thumbnail_patterns = [
-                "*.jpg", "*.jpeg", "*.png", "*.webp",
-                "*.info.json", "*.description",
-                "*.vtt", "*.srt", "*.ass",
-                "*.part", "*.temp",
+            # Patterns for temporary/extra files to clean up
+            temp_patterns = [
+                "*.part", "*.temp", "*.tmp",
                 "*.f399.mp4", "*.f398.mp4", "*.f137.mp4",
-                "*.f140.m4a", "*.f251.webm"
+                "*.f140.m4a", "*.f251.webm",
+                "*.ytdl", "*.ytdl-*"
             ]
             
-            for pattern in thumbnail_patterns:
+            for pattern in temp_patterns:
                 for file in output_path.glob(pattern):
                     try:
-                        if file.suffix == '.mp4' and 'f399' not in file.name and 'f398' not in file.name and 'f137' not in file.name:
-                            continue
+                        file.unlink()
+                        print(f"[*] Removed temporary file: {file.name}")
+                    except:
+                        pass
+            
+            # Clean up thumbnail and metadata files
+            other_patterns = [
+                "*.jpg", "*.jpeg", "*.png", "*.webp",
+                "*.info.json", "*.description",
+                "*.vtt", "*.srt", "*.ass"
+            ]
+            
+            for pattern in other_patterns:
+                for file in output_path.glob(pattern):
+                    try:
                         file.unlink()
                         print(f"[*] Removed extra file: {file.name}")
                     except:
                         pass
+                        
         except Exception as e:
-            pass
+            pass  # Silently fail on cleanup errors
     
     def find_downloaded_file(self, video_info: Dict, output_path: Path) -> Optional[Path]:
-        try:
-            time.sleep(2)
-            
-            video_files = list(output_path.glob("*.mp4"))
-            
-            if not video_files:
-                print("[*] No MP4 files found in download directory")
-                return None
-            
-            video_files = [f for f in video_files if not f.name.startswith('.') and 'part' not in f.name]
-            
-            video_files.sort(key=lambda x: x.stat().st_mtime, reverse=True)
-            
-            sanitized_title = self.sanitize_filename(video_info['title'])
-            for file in video_files:
-                if sanitized_title.lower() in file.stem.lower():
-                    print(f"[*] Found matching file: {file.name}")
-                    return file
-            
-            if video_files:
-                newest_file = video_files[0]
-                print(f"[*] No exact title match, using newest file: {newest_file.name}")
-                return newest_file
-            
-            return None
-            
-        except Exception as e:
-            print(f"[*] Error finding downloaded file: {e}")
-            return None
+        """Legacy method - kept for compatibility"""
+        return self.find_downloaded_file_by_time(output_path)
     
     def verify_audio(self, file_path: Path) -> bool:
         try:
@@ -338,9 +422,13 @@ class UniversalVideoDownloader:
                     if result.returncode == 0 and 'audio' in result.stdout:
                         print(f"[+] Audio: Present ({file_size_mb:.2f} MB)")
                         return True
+                    else:
+                        print(f"[!] Audio: Not detected (file may be video-only)")
+                        return False
             
+            # Fallback check based on file size
             if file_size_mb > 50:
-                print(f"[+] High quality detected: {file_size_mb:.2f} MB (likely has audio)")
+                print(f"[+] High quality detected: {file_size_mb:.2f} MB")
                 return True
             elif file_size_mb > 20:
                 print(f"[+] Standard quality: {file_size_mb:.2f} MB")
@@ -389,23 +477,7 @@ class UniversalVideoDownloader:
             success = self.download_with_ytdlp(url, platform_dir)
             
             if success:
-                downloaded_file = self.find_downloaded_file(video_info, platform_dir)
-                if downloaded_file:
-                    try:
-                        file_size = downloaded_file.stat().st_size / (1024 * 1024)
-                        print(f"[+] Download complete: {downloaded_file.name}")
-                        print(f"[+] File size: {file_size:.2f} MB")
-                        print(f"[+] Location: {downloaded_file}")
-                        
-                        self.verify_audio(downloaded_file)
-                            
-                    except Exception as e:
-                        print(f"[*] Error getting file info: {e}")
-                        print(f"[+] Download complete: {downloaded_file.name}")
-                else:
-                    print("[+] Download completed but could not locate the specific file")
-                    print(f"[*] Check directory: {platform_dir}")
-                
+                print(f"[+] Download process completed successfully!")
                 return True
             else:
                 print("[!] Download failed after all retries")
@@ -429,10 +501,9 @@ class UniversalVideoDownloader:
             
             print(f"[*] Downloading playlist to: {playlist_dir}")
             
-            # Fixed: Use sys.executable -m yt_dlp
             cmd = [
                 sys.executable, "-m", "yt_dlp",
-                "-f", "bestvideo[height<=2160]+bestaudio/best",
+                "-f", "399+140/398+140/137+140/299+140/298+140/136+140/bestvideo+bestaudio/best",
                 "--merge-output-format", "mp4",
                 "--embed-metadata",
                 "--no-write-thumbnail",
@@ -443,7 +514,8 @@ class UniversalVideoDownloader:
                 "-o", str(playlist_dir / "%(playlist_title)s/%(title)s.%(ext)s"),
                 "--no-warnings",
                 "--newline",
-                "--progress"
+                "--progress",
+                "--verbose"
             ]
             
             if self.ffmpeg_path:
@@ -462,25 +534,36 @@ class UniversalVideoDownloader:
             
             video_count = 0
             success_count = 0
+            current_video = ""
+            
             for line in process.stdout:
                 line = line.strip()
                 if line:
-                    if '[download]' in line and 'Downloading video' not in line:
-                        print(f"\r{line}", end='', flush=True)
-                        if '100%' in line:
+                    if '[download]' in line:
+                        if 'Downloading video' in line:
+                            video_count += 1
+                            match = re.search(r'Downloading video (\d+) of (\d+)', line)
+                            if match:
+                                current_video = f"Video {match.group(1)}/{match.group(2)}"
+                                print(f"\n[*] Downloading {current_video}")
+                        elif '100%' in line:
+                            print(f"\r{line}", flush=True)
                             success_count += 1
-                    elif 'Downloading video' in line:
-                        video_count += 1
-                        print(f"\n[*] Downloading video {video_count}: {line.split(' of ')[-1]}")
-                    elif 'ETA' in line or '%' in line:
-                        print(f"\r{line}", end='', flush=True)
+                        elif '%' in line and 'Destination' not in line:
+                            print(f"\r{line}", end='', flush=True)
+                    
                     elif 'Merging' in line:
-                        print(f"\n[*] Merging audio and video...")
+                        print(f"\n[*] {line}")
+                    
+                    elif '[Merger]' in line and 'Merged' in line:
+                        print(f"[*] {line}")
+                    
                     elif 'ERROR' in line:
-                        print(f"\nError: {line}")
+                        print(f"\n[!] Error: {line}")
+                    
                     elif 'WARNING' in line:
                         if 'thumbnail' not in line.lower():
-                            print(f"\nWarning: {line}")
+                            print(f"\n[*] Warning: {line}")
             
             process.wait()
             
@@ -504,7 +587,7 @@ class UniversalVideoDownloader:
                 print("[!] Invalid URL format. Please include http:// or https://")
                 return False
             
-            if 'playlist' in url.lower() or 'list=' in url:
+            if 'playlist' in url.lower() or 'list=' in url or '&list=' in url:
                 print("[*] Detected playlist, downloading all videos...")
                 return self.download_playlist(url)
             else:
