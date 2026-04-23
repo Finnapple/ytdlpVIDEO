@@ -1,21 +1,21 @@
-# 📥 ytdlpVIDEO — Universal Video Downloader
+# ytdlpVIDEO — Universal Video Downloader
 
 > A fast, reliable Python-powered video downloader that supports YouTube, Facebook, TikTok, Instagram, and more — all through a simple terminal interface.
 
 ---
 
-## ✨ Features
+## Features
 
-- 🎬 Downloads high-quality video **with audio** automatically merged
-- 🌐 Supports **multiple platforms** — YouTube, Facebook, TikTok, Instagram, and more
-- ⚡ One-click installation via `setup.bat`
-- 🖥️ Simple, clean terminal interface — no complicated setup
-- 🔗 Automatic audio–video merging via FFmpeg
-- 🔰 Beginner-friendly — **no Python experience required**
+- Downloads high-quality video **with audio** automatically merged
+- Supports **multiple platforms** — YouTube, Facebook, TikTok, Instagram, and more
+- One-click installation via `setup.bat`
+- Simple, clean terminal interface — no complicated setup
+- Automatic audio–video merging via FFmpeg
+- Beginner-friendly — **no Python experience required**
 
 ---
 
-## 📋 Requirements
+## Requirements
 
 - Windows OS
 - Internet connection
@@ -25,7 +25,7 @@
 
 ---
 
-## 🚀 Getting Started
+## Getting Started
 
 ### 1. Clone the repository
 
@@ -52,7 +52,7 @@ Follow the on-screen prompts, paste your video URL, and let it do the rest!
 
 ---
 
-## 📖 Usage Guide
+## Usage Guide
 
 For detailed setup instructions (including FFmpeg installation), refer to:
 
@@ -62,7 +62,7 @@ guide.txt
 
 ---
 
-## 🗂️ Project Structure
+## Project Structure
 
 ```
 ytdlpVIDEO/
@@ -74,31 +74,31 @@ ytdlpVIDEO/
 
 ---
 
-## 🌐 Supported Platforms
+## Supported Platforms
 
 | Platform   | Status |
 |------------|--------|
-| YouTube    | ✅ |
-| Facebook   | ✅ |
-| TikTok     | ✅ |
-| Instagram  | ✅ |
-| And more…  | ✅ |
+| YouTube    | Supported |
+| Facebook   | Supported |
+| TikTok     | Supported |
+| Instagram  | Supported |
+| And more…  | Supported |
 
 > Powered by [yt-dlp](https://github.com/yt-dlp/yt-dlp), which supports [1000+ sites](https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md).
 
 ---
 
-## 🤝 Contributing
+## Contributing
 
-Contributions, issues, and feature requests are welcome!  
+Contributions, issues, and feature requests are welcome!
 Feel free to open an [issue](https://github.com/Finnapple/ytdlpVIDEO/issues) or submit a pull request.
 
 ---
 
-## 📄 License
+## License
 
 This project is open source. See the repository for details.
 
 ---
 
-<p align="center">Made with ❤️ by <a href="https://github.com/Finnapple">Finnapple</a></p>
+<p align="center">Made by <a href="https://github.com/Finnapple">Finnapple</a></p>
